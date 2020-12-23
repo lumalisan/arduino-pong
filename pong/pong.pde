@@ -5,11 +5,10 @@ import processing.serial.*;
 
 // Variables globales
 Serial s;
-
 PShader shader;
-
+PImage fondoMenu, fondoJuego, frame;
 int textoMenu = 64;
-boolean textoMenuB = true;
+boolean firstTime = true;
 
 // Constantes
 final int inicialWidth = 30;
@@ -18,7 +17,7 @@ final int ballRadius = 30;
 
 final int posInicialX1 = 50;
 final int posInicialY1 = 420 - inicialHeight/2;
-final int posInicialX2 = 840 - inicialWidth - posInicialX1;
+final int posInicialX2 = 1290 - inicialWidth/2 - posInicialX1;
 final int posInicialY2 = 420 - inicialHeight/2;
 
 final int MENU = 1;
@@ -26,7 +25,8 @@ final int PLAYING = 2;
 final int PAUSE = 3;
 final int GAME_OVER = 4;
 
-final int screenSize = 840;
+final int screenSizeX = 1300;
+final int screenSizeY = 840;
 
 // Variables globales de estado
 volatile int posX1 = 0;
@@ -34,8 +34,8 @@ volatile int posY1 = 0;
 volatile int posX2 = 0;
 volatile int posY2 = 0;
 
-volatile int posBallX = screenSize/2;
-volatile int posBallY = screenSize/2;
+volatile int posBallX = screenSizeX/2;
+volatile int posBallY = screenSizeY/2;
 
 volatile int state = 255;
 volatile int scoreP1 = 0;
@@ -47,22 +47,23 @@ int textMenuSelect = 1;
 void setup()
 {
   // Crea la ventana
-  size(840, 840, P2D);
+  size(1300, 840, P2D);
+
+  // Cargamos el shader 
   shader = loadShader("vhs.glsl"); 
   shader.set("iResolution", float(width), float(height));
 
+  // Cargamos las imagenes
+  fondoMenu = loadImage("fondoMenu.png");
+  fondoJuego = loadImage("retrobg2.jpg");
+  frame = loadImage("oldTvFrame.png");
+
   // Habilita el filtrado trilinear
   smooth(3);
-  frameRate(60);
+  frameRate(30);
 
-  //Dibujamos las tablas
-  stroke(255, 0, 0);
-  fill(255, 255, 255);
-  rect(posInicialX1, posInicialY1, inicialWidth, inicialHeight);
-  rect(posInicialX2, posInicialY2, inicialWidth, inicialHeight);
-  ellipse(posBallX, posBallY, ballRadius, ballRadius);
-
-  state = MENU;
+  // Activamos el estado inicial
+  state = PLAYING;
 
   // Inicialización serial (CAMBIAR SEGÚN EL SO!)
   /*
@@ -81,9 +82,8 @@ void draw()
   {
     loop();
     // Pintar fondo
-    PImage foto = loadImage("fondoMenu.png");
-    image(foto, 0, 0, screenSize, screenSize);
-    
+    image(fondoMenu, 0, 0, screenSizeX, screenSizeY);
+
     //Aplicamos el shader
     shader.set("iGlobalTime", millis() / 1000.0);
     filter(shader);
@@ -102,21 +102,23 @@ void draw()
     textSize(textoMenu);
     fill(255, 255, 255);
     textAlign(CENTER, CENTER);
-    text("PONG GAME", 420, 200);
+    text("PONG GAME", 650, 200);
 
     // Escribir explicaciones
     textSize(20);
+    noStroke();
+    fill(0, 0, 0, 150);
+    rect(365, 485, 565, 60);
     fill(255, 255, 255);
     textAlign(CENTER, CENTER);
-    text("Bienvenido al famoso juego del pong, para jugar debes", 420, 420);
-    text("utilizar el joystick en las direcciones arriba y abajo.", 420, 440);
+    text("Bienvenido al famoso juego del pong, para jugar debes", 650, 500);
+    text("utilizar el joystick en las direcciones arriba y abajo.", 650, 520);
 
     fill(0, 0, 0, 150);
-    noStroke();
-    rect(190, 503, 460, 60);
+    rect(417, 585, 460, 60);
     fill(255, 255, 255);
-    text("Para empeza el juego, tanto el J1 como el J2", 420, 520);
-    text("debeis pulsar el joystick al mismo tiempo.", 420, 540);
+    text("Para empeza el juego, tanto el J1 como el J2", 650, 600);
+    text("debéis pulsar el joystick al mismo tiempo.", 650, 620);
   }
 
   // Modo de pausa
@@ -134,9 +136,30 @@ void draw()
   // Si estas jugando
   else if (state == PLAYING)
   {
-    noLoop();
-    // Color de fondo
-    background(0, 0, 0);
+    // Pintar fondo
+    image(fondoJuego, 0, 0, screenSizeX, screenSizeY);
+
+    dibujarLineaDivisoria();
+
+    // Ejecutamos estas operaciones solo la primera vez
+    if (firstTime)
+    {
+      //Dibujamos las tablas y la bola
+      noStroke();
+      fill(255, 255, 255);
+      rect(posInicialX1, posInicialY1, inicialWidth, inicialHeight);
+      rect(posInicialX2, posInicialY2, inicialWidth, inicialHeight);
+      ellipse(posBallX, posBallY, ballRadius, ballRadius);
+
+      //firstTime = false;
+    }
+
+    //Aplicamos el shader al fondo
+    shader.set("iGlobalTime", millis() / 1000.0);
+    filter(shader);
+
+    // Colocamos el frame de la TV encima del fondo
+    image(frame, 0 - 100/2, 0 - 70/2 + 5, screenSizeX + 100, screenSizeY + 70);
   } 
 
   // ...o, si estamos en game over
@@ -145,6 +168,10 @@ void draw()
     textSize(28);
     text("Press R to restart", 410, 750);
   }
+}
+
+void dibujarLineaDivisoria()
+{
 }
 
 /*
