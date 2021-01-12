@@ -4,6 +4,8 @@ uniform vec2 iResolution;
 uniform sampler2D texture;
 uniform float iGlobalTime;
 
+precision highp vec2;
+
 #define iChannel0 texture
 
 highp float rand(vec2 co)
@@ -28,7 +30,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 	// Flip Y Axis
 	// uv.y = -uv.y;
 
-	highp float magnitude = 0.001;
+	highp float magnitude = 0.0001;
 
 	// Set up offset
 	vec2 offsetRedUV = uv;
