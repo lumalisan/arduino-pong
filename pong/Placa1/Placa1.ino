@@ -163,7 +163,7 @@ ISR(TIMER3_COMPA_vect)
   // Poner los datos en la trama ethernet en trozos de 1 byte
   tx_buff[ETH_DATA_OFFSET + 0] = (temp & 0xFF00) >> 8;
   tx_buff[ETH_DATA_OFFSET + 1] = (temp & 0x00FF);
-  tx_buff_len = default_buf_len + sizeof(pot);
+  tx_buff_len = default_buf_len + sizeof(temp);
 
   //tx_buff[ETH_DATA_OFFSET] = pot;
   w5500.send_data_processing(sckt, tx_buff, tx_buff_len);
