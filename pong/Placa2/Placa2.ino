@@ -34,7 +34,7 @@ uint16_t score = 0;   // Puntuación
 
 SOCKET sckt = 0;
 
-const uint8_t my_mac[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x11};
+const uint8_t my_mac[] = {0x00, 0x00, 0x00, 0xFF, 0x32, 0x54};
 
 const uint8_t default_buf_len = ETH_MAC_LENGTH + ETH_MAC_LENGTH + ETH_ETYPE_LENGTH;
 
@@ -123,7 +123,7 @@ void setup()
   TCCR3B = 0;
 
   TCCR3B |= (1 << WGM32); // CTC => WGMn3:0 = 0100
-  OCR3A = 5000;
+  OCR3A = 6000;
   TIMSK3 |= (1 << OCIE3A);
   TCCR3B |= (1 << CS30);
   TCCR3B |= (1 << CS32);
@@ -134,7 +134,7 @@ void setup()
   TCCR4B = 0;
 
   TCCR4B |= (1 << WGM42); // CTC => WGMn3:0 = 0100
-  OCR4A = 5000;
+  OCR4A = 3000;
   TIMSK4 |= (1 << OCIE4A);
   TCCR4B |= (1 << CS40);
   TCCR4B |= (1 << CS42);
@@ -174,9 +174,10 @@ ISR(TIMER3_COMPA_vect)
 // Rutina de interrupción Timer 4 (Polling Ethernet)
 ISR(TIMER4_COMPA_vect)
 {
+  Serial.println("No he entrado!!!");
   if (w5500.getRXReceivedSize(sckt) != 0)
     {
-      Serial.print("Receive ");
+      Serial.println("Received ");
 
       w5500.recv_data_processing(sckt, rx_buff, 2);
       w5500.execCmdSn(sckt, Sock_RECV);
@@ -249,6 +250,7 @@ void print_eth_frame(uint8_t *frame, uint16_t frame_len)
 
 void loop()
 {
+  /*
   // TABLA DE ESTADOS
   // 0 = Hacia la derecha
   // 1 = Hacia abajo
@@ -332,4 +334,5 @@ void loop()
 
     }
   }
+  */
 }

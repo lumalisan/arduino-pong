@@ -65,7 +65,7 @@ void setup()
 
   // Activamos el estado inicial
   state = MENU;
-  state = PLAYING;
+  //state = PLAYING;
 
   // Inicialización serial (CAMBIAR SEGÚN EL SO!)
   /*
