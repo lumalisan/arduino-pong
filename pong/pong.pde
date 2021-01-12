@@ -43,6 +43,7 @@ volatile int scoreP2 = 0;
 
 int textMenuSelect = 1;
 
+int debug = 0;
 
 void setup()
 {
@@ -63,6 +64,7 @@ void setup()
   frameRate(30);
 
   // Activamos el estado inicial
+  state = MENU;
   state = PLAYING;
 
   // Inicialización serial (CAMBIAR SEGÚN EL SO!)
@@ -140,6 +142,7 @@ void draw()
     image(fondoJuego, 0, 0, screenSizeX, screenSizeY);
 
     dibujarLineaDivisoria();
+    mostrarPuntuacion();
 
     // Ejecutamos estas operaciones solo la primera vez
     if (firstTime)
@@ -172,6 +175,24 @@ void draw()
 
 void dibujarLineaDivisoria()
 {
+  noStroke();
+  fill(255, 255, 255, 100);
+  
+  for(int i = 0; i < 11; i++){
+    rect(645, i*79, 10, 69);
+  }
+}
+
+void mostrarPuntuacion()
+{
+  debug++;
+
+  textSize(45);
+  fill(255, 255, 255);
+  textAlign(RIGHT, CENTER);
+  text(debug, 605, 50);
+  textAlign(LEFT, CENTER);
+  text(debug, 690, 50);
 }
 
 /*

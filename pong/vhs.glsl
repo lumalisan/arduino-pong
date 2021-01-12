@@ -28,8 +28,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 	// Flip Y Axis
 	// uv.y = -uv.y;
 
-	highp float magnitude = 0.005;
-
+	highp float magnitude = 0.001;
 
 	// Set up offset
 	vec2 offsetRedUV = uv;
