@@ -64,8 +64,8 @@ void setup()
   frameRate(30);
 
   // Activamos el estado inicial
-  state = MENU;
-  //state = PLAYING;
+  //state = MENU;
+  state = PLAYING;
 
   // Inicialización serial (CAMBIAR SEGÚN EL SO!)
   /*

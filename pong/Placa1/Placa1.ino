@@ -2,33 +2,48 @@
 #include <Ethernet2.h>
 #include "EthRaw.h"
 
+
+// PLACA 1
+// Responsable de:
+// - Leer el input del Joystick 1
+// - Recoger datos de Joystick 2 de la Placa 2 por Eth.
+// - Calcular la lógica de juego
+// - Enviar los datos por serial a Processing
+
 /**************************************/
 /* Variables generales                */
 /**************************************/
 
-#define UP 3
+#define UP 0
 #define DOWN 1
-#define LEFT 2
-#define RIGHT 0
-#define GOVER 4
+#define MENU 2
+#define GOVER 3
 
-#define MAX 9
-#define MIN 0
+// Tamaños en pixeles de la ventana de juego en Processing
+#define MAX_SCREEN_X 1300
+#define MAX_SCREEN_Y 840
+
+#define PIN_Y A0    // Pin de input ANALógico
+#define PIN_BUTT A5 // Pin de input del botón
 
 // Booleano que señaliza que hay que avanzar la lógica de juego
 volatile bool timer_flag = false;
-// Coordenadas de la serpiente (por defecto al centro de la ventana)
-uint8_t snakeX = 4;
-uint8_t snakeY = 4;
-// Coordenadas de la comida
-uint8_t foodX = 0;
-uint8_t foodY = 0;
-uint8_t foodLastX = 0;
-uint8_t foodLastY = 0;
+
+// Coordenadas de los jugadores (por defecto al centro de la ventana)
+uint16_t player1Y = 405; // Igual a posInicialY1 en el file Processing
+uint16_t player2Y = 405; // Igual a posInicialY2 en el file Processing
+
+uint8_t button1 = 0; // Estado del botón 1
+uint8_t button2 = 0; // Estado del botón 2
+
+// Coordenadas de la pelota
+uint16_t ballX = MAX_SCREEN_X / 2;
+uint16_t ballY = MAX_SCREEN_Y / 2;
 
 uint8_t state = 255;  // Estado por defecto
 
-uint16_t score = 0;   // Puntuación
+uint16_t scoreP1 = 0;   // Puntuación jugador 1
+uint16_t scoreP2 = 0;   // Puntuación jugador 2
 
 // Constantes y variables para comunicación Ethernet
 
@@ -60,32 +75,31 @@ ISR(TIMER1_COMPA_vect)
   timer_flag = true;
 }
 
-void updateFood() {
-  foodX = random(7) + 1;
-  foodY = random(7) + 1;
-  // Si la comida aparece en el mismo sitio de la serpiente o en el mismo sitio, recalcula
-  while ((foodX == snakeX && foodY == snakeY) || (foodX == foodLastX && foodY == foodLastY)) {
-    foodX = random(7) + 1;
-    foodY = random(7) + 1;
-  }
+// Actualiza la posición de la pelota
+void updateBall() {
+
 }
 
 // Reset del juego: Restablecimiento de parámetros por defecto
 void reset() {
   timer_flag = false;
-  // Coordenadas de la serpiente (por defecto al centro de la ventana)
-  snakeX = 4;
-  snakeY = 4;
-  // Coordenadas de la comida
-  foodX = 0;
-  foodY = 0;
-  foodLastX = 0;
-  foodLastY = 0;
+
+  // Coordenadas jugadores
+  player1Y = 405; // Igual a posInicialY1 en el file Processing
+  player2Y = 405; // Igual a posInicialY2 en el file Processing
+
+  // Coordenadas de la pelota
+  ballX = MAX_SCREEN_X / 2;
+  ballY = MAX_SCREEN_X / 2;
+
   state = 255;
-  score = 0;
-  updateFood();
+
+  // Puntuaciones
+  scoreP1 = 0;
+  scoreP2 = 0;
+
   TCCR1B &= ~(1 << CS11); // Habilita Timer
-  OCR1A = 10000;
+  OCR1A = 1000;
 }
 
 
@@ -103,13 +117,10 @@ void setup()
   TCCR1B = 0;
 
   TCCR1B |= (1 << WGM12); // CTC => WGMn3:0 = 0100
-  OCR1A = 10000;
+  OCR1A = 1000;
   TIMSK1 |= (1 << OCIE1A);
   TCCR1B |= (1 << CS10);
   TCCR1B |= (1 << CS12);
-
-  // Seed aleatorio para que la comida no aparezca siempre en los mismos sitios
-  randomSeed(analogRead(0));
 
   // Inicialización W5500
   w5500.init();
@@ -117,16 +128,18 @@ void setup()
   w5500.writeSnMR(sckt, SnMR::MACRAW);
   w5500.execCmdSn(sckt, Sock_OPEN);
 
-  // Configure timer 3 para envío Ethernet periódico
-  // 10 ms; OC = 10; pre-escaler = 1:1024
-  TCCR3A = 0;
-  TCCR3B = 0;
+  /*
+    // Configure timer 3 para envío Ethernet periódico
+    // 10 ms; OC = 10; pre-escaler = 1:1024
+    TCCR3A = 0;
+    TCCR3B = 0;
 
-  TCCR3B |= (1 << WGM32); // CTC => WGMn3:0 = 0100
-  OCR3A = 5000;
-  TIMSK3 |= (1 << OCIE3A);
-  TCCR3B |= (1 << CS30);
-  TCCR3B |= (1 << CS32);
+    TCCR3B |= (1 << WGM32); // CTC => WGMn3:0 = 0100
+    OCR3A = 500;
+    TIMSK3 |= (1 << OCIE3A);
+    TCCR3B |= (1 << CS30);
+    TCCR3B |= (1 << CS32);
+  */
 
   // Configure timer 4 para polling Ethernet periódico
   // 10 ms; OC = 10; pre-escaler = 1:1024
@@ -134,7 +147,7 @@ void setup()
   TCCR4B = 0;
 
   TCCR4B |= (1 << WGM42); // CTC => WGMn3:0 = 0100
-  OCR4A = 5000;
+  OCR4A = 500;
   TIMSK4 |= (1 << OCIE4A);
   TCCR4B |= (1 << CS40);
   TCCR4B |= (1 << CS42);
@@ -149,12 +162,12 @@ void setup()
   tx_buff[ETH_DATA_OFFSET] = 0;
 
   tx_buff_len = default_buf_len;
-
 }
 
-// Rutina de interrupción Timer 3 (Envío Ethernet)
-ISR(TIMER3_COMPA_vect)
-{
+/*
+  // Rutina de interrupción Timer 3 (Envío Ethernet)
+  ISR(TIMER3_COMPA_vect)
+  {
   // Enviar datos
   Serial.println(" Send datos ethernet");
 
@@ -169,39 +182,54 @@ ISR(TIMER3_COMPA_vect)
   w5500.send_data_processing(sckt, tx_buff, tx_buff_len);
   w5500.execCmdSn(sckt, Sock_SEND_MAC);
 
-}
+  }
+*/
 
 // Rutina de interrupción Timer 4 (Polling Ethernet)
 ISR(TIMER4_COMPA_vect)
 {
   if (w5500.getRXReceivedSize(sckt) != 0)
-    {
-      Serial.print("Receive ");
+  {
+    Serial.print("Receive ");
 
-      w5500.recv_data_processing(sckt, rx_buff, 2);
-      w5500.execCmdSn(sckt, Sock_RECV);
+    w5500.recv_data_processing(sckt, rx_buff, 2);
+    w5500.execCmdSn(sckt, Sock_RECV);
 
-      // Se descartan los primeros dos bytes que contienen la longitud
-      rx_buff_len = rx_buff[0] << 8 | rx_buff[1];
-      rx_buff_len -= 2;
+    // Se descartan los primeros dos bytes que contienen la longitud
+    rx_buff_len = rx_buff[0] << 8 | rx_buff[1];
+    rx_buff_len -= 2;
 
-      sprintf(buff, "(%u bytes)\n\r", rx_buff_len);
-      Serial.print(buff);
+    sprintf(buff, "(%u bytes)\n\r", rx_buff_len);
+    Serial.print(buff);
 
-      w5500.recv_data_processing(sckt, rx_buff, rx_buff_len);
-      w5500.execCmdSn(sckt, Sock_RECV);
+    w5500.recv_data_processing(sckt, rx_buff, rx_buff_len);
+    w5500.execCmdSn(sckt, Sock_RECV);
 
-      // Print etype
-      rx_etype = (rx_buff[ETH_ETYPE_OFFSET] << 8) | rx_buff[ETH_ETYPE_OFFSET + 1];
-      sprintf(buff, "   ETYPE: 0x%x", rx_etype);
-      Serial.println(buff);
+    player2Y = rx_buff[ETH_DATA_OFFSET + 0] << 8;
+    player2Y |= rx_buff[ETH_DATA_OFFSET + 1];
 
-      if (rx_etype == ETH_EXP_ETYPE)
-      {
-        print_eth_frame(rx_buff, rx_buff_len);
-      }
-    }
+    button2 = rx_buff[ETH_DATA_OFFSET + 2];
 
+    Serial.print("Player 2Y vale: ");
+    Serial.println(player2Y);
+
+    Serial.print("El botón 2 vale: ");
+    Serial.println(button2);
+    
+
+    /*
+          // Print etype
+          rx_etype = (rx_buff[ETH_ETYPE_OFFSET] << 8) | rx_buff[ETH_ETYPE_OFFSET + 1];
+          sprintf(buff, "   ETYPE: 0x%x", rx_etype);
+          Serial.println(buff);
+
+          if (rx_etype == ETH_EXP_ETYPE)
+          {
+            print_eth_frame(rx_buff, rx_buff_len);
+          }
+        }
+    */
+  }
 }
 
 
@@ -249,6 +277,7 @@ void print_eth_frame(uint8_t *frame, uint16_t frame_len)
 
 void loop()
 {
+  /*
   // TABLA DE ESTADOS
   // 0 = Hacia la derecha
   // 1 = Hacia abajo
@@ -256,7 +285,7 @@ void loop()
   // 3 = Hacia arriba
   // 4 = Game Over
   // 255 = Default (sin movimiento)
- 
+
   // Tecla recibida
   uint8_t key;
 
@@ -332,4 +361,5 @@ void loop()
 
     }
   }
+  */
 }

@@ -4,7 +4,7 @@ uniform vec2 iResolution;
 uniform sampler2D texture;
 uniform float iGlobalTime;
 
-precision highp vec2;
+// precision highp vec2;
 
 #define iChannel0 texture
 

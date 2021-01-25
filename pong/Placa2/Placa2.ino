@@ -2,36 +2,23 @@
 #include <Ethernet2.h>
 #include "EthRaw.h"
 
+
+// PLACA 2
+// Responsable de:
+// - Leer el input del Joystick 2
+// - Enviar los datos del Joystick 2 a la Placa 1
+
 /**************************************/
 /* Variables generales                */
 /**************************************/
 
-#define UP 3
-#define DOWN 1
-#define LEFT 2
-#define RIGHT 0
-#define GOVER 4
+#define PIN_Y A0    // Pin de input ANALógico
+#define PIN_BUTT A5  // Pin de input del botón
 
-#define MAX 9
-#define MIN 0
-
-// Booleano que señaliza que hay que avanzar la lógica de juego
-volatile bool timer_flag = false;
-// Coordenadas de la serpiente (por defecto al centro de la ventana)
-uint8_t snakeX = 4;
-uint8_t snakeY = 4;
-// Coordenadas de la comida
-uint8_t foodX = 0;
-uint8_t foodY = 0;
-uint8_t foodLastX = 0;
-uint8_t foodLastY = 0;
-
-uint8_t state = 255;  // Estado por defecto
-
-uint16_t score = 0;   // Puntuación
+// Coordenadas del jugador (por defecto al centro de la ventana)
+uint16_t playerY = 405;  // Igual a posInicialY2 en el file Processing
 
 // Constantes y variables para comunicación Ethernet
-
 SOCKET sckt = 0;
 
 const uint8_t my_mac[] = {0x00, 0x00, 0x00, 0xFF, 0x32, 0x54};
@@ -54,40 +41,11 @@ char buff[30];
 
 volatile bool debounce = true;
 
-
+// Tarea periódica de actualización de juego y envío de datos
 ISR(TIMER1_COMPA_vect)
 {
-  timer_flag = true;
+  //timer_flag = true;
 }
-
-void updateFood() {
-  foodX = random(7) + 1;
-  foodY = random(7) + 1;
-  // Si la comida aparece en el mismo sitio de la serpiente o en el mismo sitio, recalcula
-  while ((foodX == snakeX && foodY == snakeY) || (foodX == foodLastX && foodY == foodLastY)) {
-    foodX = random(7) + 1;
-    foodY = random(7) + 1;
-  }
-}
-
-// Reset del juego: Restablecimiento de parámetros por defecto
-void reset() {
-  timer_flag = false;
-  // Coordenadas de la serpiente (por defecto al centro de la ventana)
-  snakeX = 4;
-  snakeY = 4;
-  // Coordenadas de la comida
-  foodX = 0;
-  foodY = 0;
-  foodLastX = 0;
-  foodLastY = 0;
-  state = 255;
-  score = 0;
-  updateFood();
-  TCCR1B &= ~(1 << CS11); // Habilita Timer
-  OCR1A = 10000;
-}
-
 
 /******************************************************************************/
 /** SETUP *********************************************************************/
@@ -96,20 +54,22 @@ void reset() {
 void setup()
 {
   Serial.begin(115200);
+  pinMode(PIN_Y, INPUT);
+  pinMode(PIN_BUTT, INPUT);
 
-  // Configure timer 1
+  /*
+  // Configure timer 1 (timer de juego)
   // 10 ms; OC = 10; pre-escaler = 1:1024
   TCCR1A = 0;
   TCCR1B = 0;
 
+  // HAY Q SINCRONZAR O NO¿?¿¿?¿¿??¿?¿?¿?¿?¿?¿?¿?¿?¿???¿?¿?¿?¿?¿?¿?¿
   TCCR1B |= (1 << WGM12); // CTC => WGMn3:0 = 0100
-  OCR1A = 10000;
+  OCR1A = 1000;
   TIMSK1 |= (1 << OCIE1A);
   TCCR1B |= (1 << CS10);
   TCCR1B |= (1 << CS12);
-
-  // Seed aleatorio para que la comida no aparezca siempre en los mismos sitios
-  randomSeed(analogRead(0));
+  */
 
   // Inicialización W5500
   w5500.init();
@@ -123,12 +83,13 @@ void setup()
   TCCR3B = 0;
 
   TCCR3B |= (1 << WGM32); // CTC => WGMn3:0 = 0100
-  OCR3A = 6000;
+  OCR3A = 500;
   TIMSK3 |= (1 << OCIE3A);
   TCCR3B |= (1 << CS30);
   TCCR3B |= (1 << CS32);
 
-  // Configure timer 4 para polling Ethernet periódico
+  /*
+  // Configure timer 4 para polling Ethernet periódico (Posiblemente no necesario)
   // 10 ms; OC = 10; pre-escaler = 1:1024
   TCCR4A = 0;
   TCCR4B = 0;
@@ -138,6 +99,7 @@ void setup()
   TIMSK4 |= (1 << OCIE4A);
   TCCR4B |= (1 << CS40);
   TCCR4B |= (1 << CS42);
+  */
 
   // Prepare tx frame
   for (i = 0; i < ETH_MAC_LENGTH; i++)  tx_buff[ETH_DST_OFFSET + i] = BCAST_MAC[i];
@@ -158,19 +120,31 @@ ISR(TIMER3_COMPA_vect)
   // Enviar datos
   Serial.println(" Send datos ethernet");
 
-  uint16_t temp = 420;  // Variable temporal para poner algo
+  // DATOS A ENVIAR: Posición Y del ANALógico y estado del botón
+
+  playerY = analogRead(PIN_Y);
+  uint8_t butt = analogRead(PIN_BUTT);
+  
+  Serial.print("Valor de analogíco Y: ");
+  Serial.println(playerY);
+  if (butt == 0) {
+    Serial.println("BOTÓN PULSADO HOSTIA");
+  }
+  //Serial.print("Valor del botón: ");
+  //Serial.println(butt);
 
   // Poner los datos en la trama ethernet en trozos de 1 byte
-  tx_buff[ETH_DATA_OFFSET + 0] = (temp & 0xFF00) >> 8;
-  tx_buff[ETH_DATA_OFFSET + 1] = (temp & 0x00FF);
-  tx_buff_len = default_buf_len + sizeof(temp);
+  tx_buff[ETH_DATA_OFFSET + 0] = (playerY & 0xFF00) >> 8;
+  tx_buff[ETH_DATA_OFFSET + 1] = (playerY & 0x00FF);
+  tx_buff[ETH_DATA_OFFSET + 2] = butt;
+  tx_buff_len = default_buf_len + sizeof(playerY) + sizeof(butt);
 
   //tx_buff[ETH_DATA_OFFSET] = pot;
   w5500.send_data_processing(sckt, tx_buff, tx_buff_len);
   w5500.execCmdSn(sckt, Sock_SEND_MAC);
-
 }
 
+/*
 // Rutina de interrupción Timer 4 (Polling Ethernet)
 ISR(TIMER4_COMPA_vect)
 {
@@ -202,9 +176,7 @@ ISR(TIMER4_COMPA_vect)
         print_eth_frame(rx_buff, rx_buff_len);
       }
     }
-
 }
-
 
 // Imprime datos recibidos por ethernet
 void print_eth_frame(uint8_t *frame, uint16_t frame_len)
@@ -242,7 +214,7 @@ void print_eth_frame(uint8_t *frame, uint16_t frame_len)
 
   Serial.println("");
 }
-
+*/
 
 /******************************************************************************/
 /** LOOP **********************************************************************/
@@ -251,19 +223,6 @@ void print_eth_frame(uint8_t *frame, uint16_t frame_len)
 void loop()
 {
   /*
-  // TABLA DE ESTADOS
-  // 0 = Hacia la derecha
-  // 1 = Hacia abajo
-  // 2 = Hacia la izquierda
-  // 3 = Hacia arriba
-  // 4 = Game Over
-  // 255 = Default (sin movimiento)
- 
-  // Tecla recibida
-  uint8_t key;
-
-  updateFood();
-
   while (1)
   {
     // Cuando se verifica una interrupción del Timer
