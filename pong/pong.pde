@@ -20,19 +20,17 @@ final int posInicialY1 = 420 - inicialHeight/2;
 final int posInicialX2 = 1290 - inicialWidth/2 - posInicialX1;
 final int posInicialY2 = 420 - inicialHeight/2;
 
-final int MENU = 1;
-final int PLAYING = 2;
-final int PAUSE = 3;
-final int GAME_OVER = 4;
+final int MENU = 0;
+final int PLAYING = 1;
 
 final int screenSizeX = 1300;
 final int screenSizeY = 840;
 
 // Variables globales de estado
-volatile int posX1 = 0;
-volatile int posY1 = 0;
-volatile int posX2 = 0;
-volatile int posY2 = 0;
+volatile int posX1 = posInicialX1;
+volatile int posY1 = posInicialY1;
+volatile int posX2 = posInicialX2;
+volatile int posY2 = posInicialY2;
 
 volatile int posBallX = screenSizeX/2;
 volatile int posBallY = screenSizeY/2;
@@ -61,20 +59,19 @@ void setup()
 
   // Habilita el filtrado trilinear
   smooth(3);
-  frameRate(30);
+  frameRate(60);
 
   // Activamos el estado inicial
-  //state = MENU;
-  state = PLAYING;
+  state = MENU;
 
   // Inicialización serial (CAMBIAR SEGÚN EL SO!)
-  /*
-  s = new Serial(this, "COM8", 115200);
+  
+  s = new Serial(this, "COM4", 115200);
    s.bufferUntil('\n'); // Buffer hasta recibir un '\n' antes de llamar al serialEvent
    
    // Delay de 2 seg. para dar tiempo al Arduino de empezar a enviar datos
    delay(2000);
-   */
+   
 }
 
 void draw()
@@ -123,8 +120,9 @@ void draw()
     text("debéis pulsar el joystick al mismo tiempo.", 650, 620);
   }
 
+  /*
   // Modo de pausa
-  else if (state == PAUSE)
+  else if (state == SCORED)
   {
     fill(0, 0, 0, 100);  // Obscura la pantalla
     rect(0, 0, width, height);
@@ -134,6 +132,7 @@ void draw()
     textAlign(CENTER, CENTER);
     text("PAUSA", 410, 380);
   }
+  */
 
   // Si estas jugando
   else if (state == PLAYING)
@@ -145,17 +144,17 @@ void draw()
     mostrarPuntuacion();
 
     // Ejecutamos estas operaciones solo la primera vez
-    if (firstTime)
-    {
+    //if (firstTime)
+    //{
       //Dibujamos las tablas y la bola
       noStroke();
       fill(255, 255, 255);
-      rect(posInicialX1, posInicialY1, inicialWidth, inicialHeight);
-      rect(posInicialX2, posInicialY2, inicialWidth, inicialHeight);
+      rect(posX1, posY1, inicialWidth, inicialHeight);
+      rect(posX2, posY2, inicialWidth, inicialHeight);
       ellipse(posBallX, posBallY, ballRadius, ballRadius);
 
       //firstTime = false;
-    }
+    //}
 
     //Aplicamos el shader al fondo
     shader.set("iGlobalTime", millis() / 1000.0);
@@ -165,12 +164,6 @@ void draw()
     image(frame, 0 - 100/2, 0 - 70/2 + 5, screenSizeX + 100, screenSizeY + 70);
   } 
 
-  // ...o, si estamos en game over
-  else if (state == GAME_OVER) {
-
-    textSize(28);
-    text("Press R to restart", 410, 750);
-  }
 }
 
 void dibujarLineaDivisoria()
@@ -185,17 +178,17 @@ void dibujarLineaDivisoria()
 
 void mostrarPuntuacion()
 {
-  debug++;
+  //debug++;
 
   textSize(45);
   fill(255, 255, 255);
   textAlign(RIGHT, CENTER);
-  text(debug, 605, 50);
+  text(scoreP1, 605, 50);
   textAlign(LEFT, CENTER);
-  text(debug, 690, 50);
+  text(scoreP2, 690, 50);
 }
 
-/*
+
 void serialEvent(Serial s)
  { 
  // El try-catch evita de que se interrumpa la comunicación si el parsing
@@ -220,37 +213,20 @@ void serialEvent(Serial s)
  // }
  
  // Actualiza las variables globales según los datos recibidos
- snakeX = Integer.parseInt(tokens[0]);
- snakeY = Integer.parseInt(tokens[1]);
- foodX = Integer.parseInt(tokens[2]);
- foodY = Integer.parseInt(tokens[3]);
- state = Integer.parseInt(tokens[4]);
- score = Integer.parseInt(tokens[5]);
- perepalmer = tokens[6];
- 
- // ARDUINO
- 
- Serial.print('<');
- Serial.print(snakeX);
- Serial.print(',');
- Serial.print(snakeY);
- Serial.print(',');
- Serial.print(foodX);
- Serial.print(',');
- Serial.print(foodY);
- Serial.print(',');
- Serial.print(state);
- Serial.print(',');
- Serial.print(score);
- Serial.print(',');
- Serial.print(perepalmer);
- Serial.println('>');
+ posY1 = Integer.parseInt(tokens[0]);
+ posY2 = Integer.parseInt(tokens[1]);
+ state = Integer.parseInt(tokens[2]);
+ scoreP1 = Integer.parseInt(tokens[3]);
+ scoreP2 = Integer.parseInt(tokens[4]);
+ posBallX = (int) Float.parseFloat(tokens[5]);
+ posBallY = (int) Float.parseFloat(tokens[6]);
  
  // Imprime por consola los datos actualizados
- println("X: " + snakeX + " | Y: " + snakeY + " | FoodX: " + foodX + " | FoodY: " + foodY + " | state: " + state + " | score: " + score);
+ println("Y1: " + posY1 + " | Y2: " + posY2 + " | state: " + state + " | scoreP1: " + scoreP1 + " | scoreP2: " + scoreP2 + "\nposBallX: " + posBallX + " | posBallY: " + posBallY);
  } 
  catch (NumberFormatException nfe) {
  // Si se verifica un error durante el parsing de los tokens, vuelve a dibujar la pantalla
+ println("NUMBERFORMATEXCEPTION, PUTOS FLOATS DE MIERDA");
  }
  catch (Exception e) {
  // Si hay algún otro tipo de excepción, imprime los detalles y vuelve a dibujar la pantalla
@@ -261,4 +237,4 @@ void serialEvent(Serial s)
  }
  }
  } 
- */
+ 

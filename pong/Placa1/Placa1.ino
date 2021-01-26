@@ -2,7 +2,6 @@
 #include <Ethernet2.h>
 #include "EthRaw.h"
 
-
 // PLACA 1
 // Responsable de:
 // - Leer el input del Joystick 1
@@ -14,10 +13,9 @@
 /* Variables generales                */
 /**************************************/
 
-#define UP 0
-#define DOWN 1
-#define MENU 2
-#define GOVER 3
+#define MENU 0
+#define PLAYING 1
+// TODO: AÑADIR ESTADO DE PAUSA?
 
 // Tamaños en pixeles de la ventana de juego en Processing
 #define MAX_SCREEN_X 1300
@@ -26,24 +24,37 @@
 #define PIN_Y A0    // Pin de input ANALógico
 #define PIN_BUTT A5 // Pin de input del botón
 
+#define START_SPEED 0.5 // Velocidad de la bola
+
+#define PLAYER_HEIGHT 100 // Tamaño en píxeles del padel (vertical) de cada PJ
+#define PLAYER_WIDTH 30   // Tamaño en píxeles del padel (horizontal) de cada PJ
+#define PLAYER1_X 50
+#define PLAYER2_X 1225
+
+#define DEADZONE 25
+#define PLAYER_Y_DEFAULT 370
+
+
 // Booleano que señaliza que hay que avanzar la lógica de juego
 volatile bool timer_flag = false;
 
 // Coordenadas de los jugadores (por defecto al centro de la ventana)
-uint16_t player1Y = 405; // Igual a posInicialY1 en el file Processing
-uint16_t player2Y = 405; // Igual a posInicialY2 en el file Processing
+volatile uint16_t player1Y = PLAYER_Y_DEFAULT; // Igual a posInicialY1 en Processing
+volatile uint16_t player2Y = PLAYER_Y_DEFAULT; // Igual a posInicialY2 en Processing
 
-uint8_t button1 = 0; // Estado del botón 1
-uint8_t button2 = 0; // Estado del botón 2
+uint8_t button1 = 255;          // Estado del botón 1
+volatile uint8_t button2 = 255; // Estado del botón 2
 
-// Coordenadas de la pelota
-uint16_t ballX = MAX_SCREEN_X / 2;
-uint16_t ballY = MAX_SCREEN_Y / 2;
+// Coordenadas y velocidades de la pelota
+float ballX = MAX_SCREEN_X / 2;
+float ballY = MAX_SCREEN_Y / 2;
+float ballSpeedX = START_SPEED;
+float ballSpeedY = 0;
 
-uint8_t state = 255;  // Estado por defecto
+uint8_t state = MENU; // Estado por defecto
 
-uint16_t scoreP1 = 0;   // Puntuación jugador 1
-uint16_t scoreP2 = 0;   // Puntuación jugador 2
+uint16_t scoreP1 = 0; // Puntuación jugador 1
+uint16_t scoreP2 = 0; // Puntuación jugador 2
 
 // Constantes y variables para comunicación Ethernet
 
@@ -56,11 +67,11 @@ const uint8_t default_buf_len = ETH_MAC_LENGTH + ETH_MAC_LENGTH + ETH_ETYPE_LENG
 void print_eth_frame(uint8_t *frame, uint16_t frame_len);
 
 // tx buffer
-volatile uint8_t  tx_buff[ETH_MAX_FRAME_SIZE];
+volatile uint8_t tx_buff[ETH_MAX_FRAME_SIZE];
 volatile uint16_t tx_buff_len;
 
 // rx buffer
-uint8_t  rx_buff[ETH_MAX_FRAME_SIZE];
+uint8_t rx_buff[ETH_MAX_FRAME_SIZE];
 uint16_t rx_buff_len;
 uint16_t rx_etype;
 
@@ -69,19 +80,90 @@ char buff[30];
 
 volatile bool debounce = true;
 
-
 ISR(TIMER1_COMPA_vect)
 {
   timer_flag = true;
 }
 
-// Actualiza la posición de la pelota
-void updateBall() {
+// Hacemos el mapping de los valores del potenciometro a los 
+// valores de nuestra ventana. Verificamos si los valores esta 
+// fuera de nuestra Deadzone para realmente mover el pad.
+void updatePlayers()
+{
+  // Clamp de los valores analógicos de los dos sticks
+  //player1Y = map(player1Y, 0, 980, 0, 740);
+  //player2Y = map(player2Y, 0, 980, 0, 740);
 
+  /*
+  // Deadzone player 1
+  if ((player1Y > PLAYER_Y_DEFAULT && player1Y < PLAYER_Y_DEFAULT + DEADZONE) ||
+  (player1Y < PLAYER_Y_DEFAULT && player1Y > PLAYER_Y_DEFAULT - DEADZONE)) {
+    player1Y = PLAYER_Y_DEFAULT;
+  }
+
+  // Deadzone player 2
+  if ((player2Y > PLAYER_Y_DEFAULT && player2Y < PLAYER_Y_DEFAULT + DEADZONE) ||
+  (player2Y < PLAYER_Y_DEFAULT && player2Y > PLAYER_Y_DEFAULT - DEADZONE)) {
+    player2Y = PLAYER_Y_DEFAULT;
+  }
+  */
+}
+
+// Actualiza la posición de la pelota
+void updateBall()
+{
+  ballX += ballSpeedX;
+  ballY += ballSpeedY;
+
+  // Aumentar puntuación y resetear la posicion de 
+  // la bola en funcion de que jugador ha puntuado
+  if (ballX > MAX_SCREEN_X)
+  {
+    scoreP1++;
+    ballX = MAX_SCREEN_X / 2;
+    ballY = MAX_SCREEN_Y / 2;
+    ballSpeedX = -START_SPEED;
+    ballSpeedY = 0;
+    return;
+  }
+  else if (ballX < 0)
+  {
+    scoreP2++;
+    ballX = MAX_SCREEN_X / 2;
+    ballY = MAX_SCREEN_Y / 2;
+    ballSpeedX = START_SPEED;
+    ballSpeedY = 0;
+    return;
+  }
+
+  // Reflejo vertical
+  if (ballY > MAX_SCREEN_Y || ballY < 0)
+    ballSpeedY *= -1;
+
+  // Si hay colisión con el padel del jugador 1 o del 2
+  if (ballX == PLAYER1_X + PLAYER_WIDTH && ballY >= player1Y 
+      && ballY <= player1Y + PLAYER_HEIGHT)
+  {
+    // Si le da hado al paddle del jugador 1
+    float paddleCenter = player1Y + (PLAYER_HEIGHT / 2);
+    float d = paddleCenter - ballY;
+    ballSpeedY += d * -0.1;
+    ballSpeedX *= -1;
+  }
+  else if (ballX == PLAYER2_X && ballY >= player2Y
+            && ballY <= player2Y + PLAYER_HEIGHT)
+  {
+    // Si le ha dado al paddle del jugador 2
+    float paddleCenter = player2Y + (PLAYER_HEIGHT / 2);
+    float d = paddleCenter - ballY;
+    ballSpeedY += d * -0.1;
+    ballSpeedX *= -1;
+  }
 }
 
 // Reset del juego: Restablecimiento de parámetros por defecto
-void reset() {
+void reset()
+{
   timer_flag = false;
 
   // Coordenadas jugadores
@@ -102,7 +184,6 @@ void reset() {
   OCR1A = 1000;
 }
 
-
 /******************************************************************************/
 /** SETUP *********************************************************************/
 /******************************************************************************/
@@ -111,13 +192,16 @@ void setup()
 {
   Serial.begin(115200);
 
+  pinMode(PIN_Y, INPUT);
+  pinMode(PIN_BUTT, INPUT);
+
   // Configure timer 1
   // 10 ms; OC = 10; pre-escaler = 1:1024
   TCCR1A = 0;
   TCCR1B = 0;
 
   TCCR1B |= (1 << WGM12); // CTC => WGMn3:0 = 0100
-  OCR1A = 1000;
+  OCR1A = 10;
   TIMSK1 |= (1 << OCIE1A);
   TCCR1B |= (1 << CS10);
   TCCR1B |= (1 << CS12);
@@ -147,14 +231,16 @@ void setup()
   TCCR4B = 0;
 
   TCCR4B |= (1 << WGM42); // CTC => WGMn3:0 = 0100
-  OCR4A = 500;
+  OCR4A = 25;
   TIMSK4 |= (1 << OCIE4A);
   TCCR4B |= (1 << CS40);
   TCCR4B |= (1 << CS42);
 
   // Prepare tx frame
-  for (i = 0; i < ETH_MAC_LENGTH; i++)  tx_buff[ETH_DST_OFFSET + i] = BCAST_MAC[i];
-  for (i = 0; i < ETH_MAC_LENGTH; i++)  tx_buff[ETH_SRC_OFFSET + i] = my_mac[i];
+  for (i = 0; i < ETH_MAC_LENGTH; i++)
+    tx_buff[ETH_DST_OFFSET + i] = BCAST_MAC[i];
+  for (i = 0; i < ETH_MAC_LENGTH; i++)
+    tx_buff[ETH_SRC_OFFSET + i] = my_mac[i];
 
   tx_buff[ETH_ETYPE_OFFSET + 0] = (ETH_EXP_ETYPE & 0xFF00) >> 8;
   tx_buff[ETH_ETYPE_OFFSET + 1] = (ETH_EXP_ETYPE & 0x00FF);
@@ -164,33 +250,12 @@ void setup()
   tx_buff_len = default_buf_len;
 }
 
-/*
-  // Rutina de interrupción Timer 3 (Envío Ethernet)
-  ISR(TIMER3_COMPA_vect)
-  {
-  // Enviar datos
-  Serial.println(" Send datos ethernet");
-
-  uint16_t temp = 69;  // Variable temporal para poner algo
-
-  // Poner los datos en la trama ethernet en trozos de 1 byte
-  tx_buff[ETH_DATA_OFFSET + 0] = (temp & 0xFF00) >> 8;
-  tx_buff[ETH_DATA_OFFSET + 1] = (temp & 0x00FF);
-  tx_buff_len = default_buf_len + sizeof(temp);
-
-  //tx_buff[ETH_DATA_OFFSET] = pot;
-  w5500.send_data_processing(sckt, tx_buff, tx_buff_len);
-  w5500.execCmdSn(sckt, Sock_SEND_MAC);
-
-  }
-*/
-
 // Rutina de interrupción Timer 4 (Polling Ethernet)
 ISR(TIMER4_COMPA_vect)
 {
   if (w5500.getRXReceivedSize(sckt) != 0)
   {
-    Serial.print("Receive ");
+    // Serial.print("Receive ");
 
     w5500.recv_data_processing(sckt, rx_buff, 2);
     w5500.execCmdSn(sckt, Sock_RECV);
@@ -199,8 +264,8 @@ ISR(TIMER4_COMPA_vect)
     rx_buff_len = rx_buff[0] << 8 | rx_buff[1];
     rx_buff_len -= 2;
 
-    sprintf(buff, "(%u bytes)\n\r", rx_buff_len);
-    Serial.print(buff);
+    //sprintf(buff, "(%u bytes)\n\r", rx_buff_len);
+    //Serial.print(buff);
 
     w5500.recv_data_processing(sckt, rx_buff, rx_buff_len);
     w5500.execCmdSn(sckt, Sock_RECV);
@@ -210,66 +275,13 @@ ISR(TIMER4_COMPA_vect)
 
     button2 = rx_buff[ETH_DATA_OFFSET + 2];
 
-    Serial.print("Player 2Y vale: ");
-    Serial.println(player2Y);
+    //Serial.print("Player 2Y vale: ");
+    //Serial.println(player2Y);
 
-    Serial.print("El botón 2 vale: ");
-    Serial.println(button2);
-    
-
-    /*
-          // Print etype
-          rx_etype = (rx_buff[ETH_ETYPE_OFFSET] << 8) | rx_buff[ETH_ETYPE_OFFSET + 1];
-          sprintf(buff, "   ETYPE: 0x%x", rx_etype);
-          Serial.println(buff);
-
-          if (rx_etype == ETH_EXP_ETYPE)
-          {
-            print_eth_frame(rx_buff, rx_buff_len);
-          }
-        }
-    */
+    //Serial.print("El botón 2 vale: ");
+    //Serial.println(button2);
   }
 }
-
-
-// Imprime datos recibidos por ethernet
-void print_eth_frame(uint8_t *frame, uint16_t frame_len)
-{
-  char buff[30];
-  uint16_t i;
-
-  // Print dst
-  sprintf(
-    buff, "   DST: %02x:%02x:%02x:%02x:%02x:%02x",
-    frame[ETH_DST_OFFSET + 0], frame[ETH_DST_OFFSET + 1], frame[ETH_DST_OFFSET + 2],
-    frame[ETH_DST_OFFSET + 3], frame[ETH_DST_OFFSET + 4], frame[ETH_DST_OFFSET + 5]
-  );
-  Serial.println(buff);
-
-  // Print src
-  sprintf(
-    buff, "   SRC: %02x:%02x:%02x:%02x:%02x:%02x",
-    frame[ETH_SRC_OFFSET + 0], frame[ETH_SRC_OFFSET + 1], frame[ETH_SRC_OFFSET + 2],
-    frame[ETH_SRC_OFFSET + 3], frame[ETH_SRC_OFFSET + 4], frame[ETH_SRC_OFFSET + 5]
-  );
-  Serial.println(buff);
-
-  // Print data
-  Serial.print("   DATA: ");
-  for (i = 0; i < frame_len - 14; i++)
-  {
-    sprintf(buff, "%02x", frame[ETH_DATA_OFFSET + i]);
-    Serial.print(buff);
-
-    if      ((i + 1) % 16 == 0)      Serial.print("\n         ");
-    else if ((i + 1) % 8  == 0)      Serial.print(" ");
-    else if (i < frame_len - 14 - 1) Serial.print(":");
-  }
-
-  Serial.println("");
-}
-
 
 /******************************************************************************/
 /** LOOP **********************************************************************/
@@ -277,89 +289,62 @@ void print_eth_frame(uint8_t *frame, uint16_t frame_len)
 
 void loop()
 {
-  /*
+
   // TABLA DE ESTADOS
-  // 0 = Hacia la derecha
-  // 1 = Hacia abajo
-  // 2 = Hacia la izquierda
-  // 3 = Hacia arriba
-  // 4 = Game Over
-  // 255 = Default (sin movimiento)
+  // 0 = Estamos en el menú
+  // 1 = Estamos jugando
+  // 2 = Se acaba de hacer un punto
 
   // Tecla recibida
   uint8_t key;
-
-  updateFood();
 
   while (1)
   {
     // Cuando se verifica una interrupción del Timer
     if (timer_flag)
     {
-      // Según hacia dónde va la serpiente, cambia su posición
       switch (state)
       {
-        case RIGHT: snakeX += 1; break;
-        case DOWN:  snakeY += 1; break;
-        case LEFT:  snakeX -= 1; break;
-        case UP:    snakeY -= 1; break;
-        case GOVER: TCCR1B |= (1 << CS11); break; // Pausa el timer
-        default: break;
+      case MENU:
+        // Cargar la pantalla de menú y comprobar que los dos jugadores pulsen el joystick
+        button1 = analogRead(PIN_BUTT);
+        if (button1 == 0 && button2 == 0){
+          state = PLAYING;
+          OCR1A = 300;
+          OCR4A = 25;
+        }
+        break;
+      case PLAYING:
+        // Aquí va el updateBall() y mirar si la algun jugador ha hecho punto
+        player1Y = analogRead(PIN_Y);
+
+        updatePlayers();
+
+        player1Y = map(player1Y, 0, 1023, 0, 740);
+        player2Y = map(player2Y, 0, 1023, 0, 740);
+
+        updateBall();
+
+        Serial.print('<');
+        Serial.print(player1Y);
+        Serial.print(',');
+        Serial.print(player2Y);
+        Serial.print(',');
+        Serial.print(state);
+        Serial.print(',');
+        Serial.print(scoreP1);
+        Serial.print(',');
+        Serial.print(scoreP2);
+        Serial.print(',');
+        Serial.print(ballX);
+        Serial.print(',');
+        Serial.print(ballY);
+        Serial.println('>');
+        break;
+      default: break;
       }
-
-      // Si la serpiente choca con los límites del campo, game over
-      if (snakeX == MAX || snakeY == MAX || snakeX == 0 || snakeY == 0)
-        state = 4;
-
-      // Si la serpiente y la comida colisionan, suma 1 a la puntuación,
-      // actualiza la posición de la comida y aumenta la velocidad del juego
-      if (snakeX == foodX && snakeY == foodY) {
-        score++;
-        updateFood();
-
-        OCR1A -= 400;
-        if (OCR1A < 2000) OCR1A = 2000; // Límite máximo
-      }
-
-      Serial.print('<');
-      Serial.print(snakeX);
-      Serial.print(',');
-      Serial.print(snakeY);
-      Serial.print(',');
-      Serial.print(foodX);
-      Serial.print(',');
-      Serial.print(foodY);
-      Serial.print(',');
-      Serial.print(state);
-      Serial.print(',');
-      Serial.print(score);
-      Serial.println('>');
 
       timer_flag = false;
     }
-
-    if (Serial.available() > 0)
-    {
-      key = Serial.read();
-
-      // Control movement
-      // UP 38, LEFT 37, RIGHT 39, DOWN 40
-
-      switch (key) {
-        // Ni idea de porqué A y S están intercambiados, pero si no no funciona
-        case 'A': TCCR1B &= ~(1 << CS11); break; // Reanuda el timer
-        case 'S': TCCR1B |= (1 << CS11); break;  // Pausa el timer
-        case 'R': reset();
-
-        case 38: state = UP; break;
-        case 37: state = LEFT; break;
-        case 39: state = RIGHT; break;
-        case 40: state = DOWN; break;
-
-        default: state = 255; break;
-      }
-
-    }
   }
-  */
 }

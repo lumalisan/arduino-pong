@@ -83,7 +83,7 @@ void setup()
   TCCR3B = 0;
 
   TCCR3B |= (1 << WGM32); // CTC => WGMn3:0 = 0100
-  OCR3A = 500;
+  OCR3A = 25;
   TIMSK3 |= (1 << OCIE3A);
   TCCR3B |= (1 << CS30);
   TCCR3B |= (1 << CS32);
