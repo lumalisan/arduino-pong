@@ -1,4 +1,9 @@
 import processing.dxf.*;
+import ddf.minim.signals.*;
+import ddf.minim.*;
+import ddf.minim.analysis.*;
+import ddf.minim.ugens.*;
+import ddf.minim.effects.*;
 
 // Comunicación serial
 import processing.serial.*;
@@ -22,6 +27,7 @@ final int posInicialY2 = 420 - inicialHeight/2;
 
 final int MENU = 0;
 final int PLAYING = 1;
+final int PAUSED = 2;
 
 final int screenSizeX = 1300;
 final int screenSizeY = 840;
@@ -43,6 +49,11 @@ int textMenuSelect = 1;
 
 int debug = 0;
 
+// Variables para los threads de musica
+MyThread sonar_menu, sonar_play;
+
+boolean once = true;
+
 void setup()
 {
   // Crea la ventana
@@ -57,6 +68,26 @@ void setup()
   fondoJuego = loadImage("retrobg2.jpg");
   frame = loadImage("oldTvFrame.png");
 
+  // Cargamos la música
+  Minim minim_menu = new Minim(this);
+  AudioPlayer player_menu = minim_menu.loadFile("MUSIC2.wav");
+  player_menu.setGain(-30);
+
+  // Creamos el thread y lo empezamos
+  sonar_menu = new MyThread(minim_menu, player_menu);
+  sonar_menu.start();
+
+  Minim minim_play = new Minim(this);
+  AudioPlayer player_play = minim_play.loadFile("MUSIC1.wav");
+  player_play.setGain(-30);
+
+  // Creamos el thread y lo empezamos
+  sonar_play = new MyThread(minim_play, player_play);
+  sonar_play.start();
+
+  // Activamos la música del menú
+  sonar_menu.playNow();
+
   // Habilita el filtrado trilinear
   smooth(3);
   frameRate(60);
@@ -65,13 +96,12 @@ void setup()
   state = MENU;
 
   // Inicialización serial (CAMBIAR SEGÚN EL SO!)
-  
-  s = new Serial(this, "COM4", 115200);
-   s.bufferUntil('\n'); // Buffer hasta recibir un '\n' antes de llamar al serialEvent
-   
-   // Delay de 2 seg. para dar tiempo al Arduino de empezar a enviar datos
-   delay(2000);
-   
+
+  s = new Serial(this, "COM6", 115200);
+  s.bufferUntil('\n'); // Buffer hasta recibir un '\n' antes de llamar al serialEvent
+
+  // Delay de 2 seg. para dar tiempo al Arduino de empezar a enviar datos
+  // delay(2000);
 }
 
 void draw()
@@ -80,6 +110,7 @@ void draw()
   if (state == MENU)
   {
     loop();
+    
     // Pintar fondo
     image(fondoMenu, 0, 0, screenSizeX, screenSizeY);
 
@@ -119,24 +150,31 @@ void draw()
     text("Para empeza el juego, tanto el J1 como el J2", 650, 600);
     text("debéis pulsar el joystick al mismo tiempo.", 650, 620);
   }
-
   /*
   // Modo de pausa
-  else if (state == SCORED)
-  {
-    fill(0, 0, 0, 100);  // Obscura la pantalla
-    rect(0, 0, width, height);
-    // Escribe texto de "Pausa"
-    textSize(64);
-    fill(255, 0, 0);
-    textAlign(CENTER, CENTER);
-    text("PAUSA", 410, 380);
-  }
-  */
+   else if (state == PAUSED)
+   {
+   fill(0, 0, 0, 20);  // Obscura la pantalla
+   rect(0, 0, width, height);
+   // Escribe texto de "Pausa"
+   textSize(64);
+   fill(255, 0, 0);
+   textAlign(CENTER, CENTER);
+   text("PAUSA", 410, 380);
+   noLoop();
+   }
+   */
 
   // Si estas jugando
   else if (state == PLAYING)
   {
+    if(once){
+      sonar_menu.quit();
+      sonar_play.playNow();
+      once = false;
+    }
+    noLoop();
+
     // Pintar fondo
     image(fondoJuego, 0, 0, screenSizeX, screenSizeY);
 
@@ -146,14 +184,14 @@ void draw()
     // Ejecutamos estas operaciones solo la primera vez
     //if (firstTime)
     //{
-      //Dibujamos las tablas y la bola
-      noStroke();
-      fill(255, 255, 255);
-      rect(posX1, posY1, inicialWidth, inicialHeight);
-      rect(posX2, posY2, inicialWidth, inicialHeight);
-      ellipse(posBallX, posBallY, ballRadius, ballRadius);
+    //Dibujamos las tablas y la bola
+    noStroke();
+    fill(255, 255, 255);
+    rect(posX1, posY1, inicialWidth, inicialHeight);
+    rect(posX2, posY2, inicialWidth, inicialHeight);
+    ellipse(posBallX, posBallY, ballRadius, ballRadius);
 
-      //firstTime = false;
+    //firstTime = false;
     //}
 
     //Aplicamos el shader al fondo
@@ -162,16 +200,15 @@ void draw()
 
     // Colocamos el frame de la TV encima del fondo
     image(frame, 0 - 100/2, 0 - 70/2 + 5, screenSizeX + 100, screenSizeY + 70);
-  } 
-
+  }
 }
 
 void dibujarLineaDivisoria()
 {
   noStroke();
   fill(255, 255, 255, 100);
-  
-  for(int i = 0; i < 11; i++){
+
+  for (int i = 0; i < 11; i++) {
     rect(645, i*79, 10, 69);
   }
 }
@@ -190,51 +227,50 @@ void mostrarPuntuacion()
 
 
 void serialEvent(Serial s)
- { 
- // El try-catch evita de que se interrumpa la comunicación si el parsing
- // de la información recibida no va bien
- 
- if (state != 4) {
- try {
- s.bufferUntil('\n');  // Almacena en el buffer hasta final de linea
- String input = s.readString();
- println("DEBUG Input: " + input.trim());
- // Elimina los marcadores de inicio/fin y el carácter de nueva línea al final
- input = input.replaceAll("<", "");
- input = input.replaceAll(">", "");
- input = input.trim();
- 
- // Divide en tokens separados por la coma
- String[] tokens = splitTokens(input, ",");
- 
- // DEBUG - Impresión de los tokens por consola
- // for (int i=0; i<tokens.length; i++) {
- //  println("\tDEBUG Token " + i + ": " + tokens[i]);
- // }
- 
- // Actualiza las variables globales según los datos recibidos
- posY1 = Integer.parseInt(tokens[0]);
- posY2 = Integer.parseInt(tokens[1]);
- state = Integer.parseInt(tokens[2]);
- scoreP1 = Integer.parseInt(tokens[3]);
- scoreP2 = Integer.parseInt(tokens[4]);
- posBallX = (int) Float.parseFloat(tokens[5]);
- posBallY = (int) Float.parseFloat(tokens[6]);
- 
- // Imprime por consola los datos actualizados
- println("Y1: " + posY1 + " | Y2: " + posY2 + " | state: " + state + " | scoreP1: " + scoreP1 + " | scoreP2: " + scoreP2 + "\nposBallX: " + posBallX + " | posBallY: " + posBallY);
- } 
- catch (NumberFormatException nfe) {
- // Si se verifica un error durante el parsing de los tokens, vuelve a dibujar la pantalla
- println("NUMBERFORMATEXCEPTION, PUTOS FLOATS DE MIERDA");
- }
- catch (Exception e) {
- // Si hay algún otro tipo de excepción, imprime los detalles y vuelve a dibujar la pantalla
- println("ERROR - " + e.getMessage());
- } 
- finally {
- redraw();  // Vuelve a dibujar la pantalla
- }
- }
- } 
- 
+{ 
+  // El try-catch evita de que se interrumpa la comunicación si el parsing
+  // de la información recibida no va bien
+
+  if (state != 4) {
+    try {
+      s.bufferUntil('\n');  // Almacena en el buffer hasta final de linea
+      String input = s.readString();
+      println("DEBUG Input: " + input.trim());
+      // Elimina los marcadores de inicio/fin y el carácter de nueva línea al final
+      input = input.replaceAll("<", "");
+      input = input.replaceAll(">", "");
+      input = input.trim();
+
+      // Divide en tokens separados por la coma
+      String[] tokens = splitTokens(input, ",");
+
+      // DEBUG - Impresión de los tokens por consola
+      // for (int i=0; i<tokens.length; i++) {
+      //  println("\tDEBUG Token " + i + ": " + tokens[i]);
+      // }
+
+      // Actualiza las variables globales según los datos recibidos
+      posY1 = Integer.parseInt(tokens[0]);
+      posY2 = Integer.parseInt(tokens[1]);
+      state = Integer.parseInt(tokens[2]);
+      scoreP1 = Integer.parseInt(tokens[3]);
+      scoreP2 = Integer.parseInt(tokens[4]);
+      posBallX = (int) Float.parseFloat(tokens[5]);
+      posBallY = (int) Float.parseFloat(tokens[6]);
+
+      // Imprime por consola los datos actualizados
+      println("Y1: " + posY1 + " | Y2: " + posY2 + " | state: " + state + " | scoreP1: " + scoreP1 + " | scoreP2: " + scoreP2 + "\nposBallX: " + posBallX + " | posBallY: " + posBallY);
+    } 
+    catch (NumberFormatException nfe) {
+      // Si se verifica un error durante el parsing de los tokens, vuelve a dibujar la pantalla
+      println("NUMBERFORMATEXCEPTION, PUTOS FLOATS DE MIERDA");
+    }
+    catch (Exception e) {
+      // Si hay algún otro tipo de excepción, imprime los detalles y vuelve a dibujar la pantalla
+      println("ERROR - " + e.getMessage());
+    } 
+    finally {
+      redraw();  // Vuelve a dibujar la pantalla
+    }
+  }
+} 

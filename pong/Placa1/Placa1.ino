@@ -15,7 +15,6 @@
 
 #define MENU 0
 #define PLAYING 1
-// TODO: AÑADIR ESTADO DE PAUSA?
 
 // Tamaños en pixeles de la ventana de juego en Processing
 #define MAX_SCREEN_X 1300
@@ -23,8 +22,9 @@
 
 #define PIN_Y A0    // Pin de input ANALógico
 #define PIN_BUTT A5 // Pin de input del botón
+#define PIN_BUTT_DIGITAL 2 // Pin de input del botón
 
-#define START_SPEED 0.5 // Velocidad de la bola
+#define START_SPEED 1 // Velocidad de la bola
 
 #define PLAYER_HEIGHT 100 // Tamaño en píxeles del padel (vertical) de cada PJ
 #define PLAYER_WIDTH 30   // Tamaño en píxeles del padel (horizontal) de cada PJ
@@ -38,11 +38,14 @@
 // Booleano que señaliza que hay que avanzar la lógica de juego
 volatile bool timer_flag = false;
 
+// Booleano para saber si el juego ya ha comenzado
+volatile bool playing = false;
+
 // Coordenadas de los jugadores (por defecto al centro de la ventana)
 volatile uint16_t player1Y = PLAYER_Y_DEFAULT; // Igual a posInicialY1 en Processing
 volatile uint16_t player2Y = PLAYER_Y_DEFAULT; // Igual a posInicialY2 en Processing
 
-uint8_t button1 = 255;          // Estado del botón 1
+volatile uint8_t button1 = 255;          // Estado del botón 1
 volatile uint8_t button2 = 255; // Estado del botón 2
 
 // Coordenadas y velocidades de la pelota
@@ -85,8 +88,8 @@ ISR(TIMER1_COMPA_vect)
   timer_flag = true;
 }
 
-// Hacemos el mapping de los valores del potenciometro a los 
-// valores de nuestra ventana. Verificamos si los valores esta 
+// Hacemos el mapping de los valores del potenciometro a los
+// valores de nuestra ventana. Verificamos si los valores esta
 // fuera de nuestra Deadzone para realmente mover el pad.
 void updatePlayers()
 {
@@ -95,17 +98,17 @@ void updatePlayers()
   //player2Y = map(player2Y, 0, 980, 0, 740);
 
   /*
-  // Deadzone player 1
-  if ((player1Y > PLAYER_Y_DEFAULT && player1Y < PLAYER_Y_DEFAULT + DEADZONE) ||
-  (player1Y < PLAYER_Y_DEFAULT && player1Y > PLAYER_Y_DEFAULT - DEADZONE)) {
+    // Deadzone player 1
+    if ((player1Y > PLAYER_Y_DEFAULT && player1Y < PLAYER_Y_DEFAULT + DEADZONE) ||
+    (player1Y < PLAYER_Y_DEFAULT && player1Y > PLAYER_Y_DEFAULT - DEADZONE)) {
     player1Y = PLAYER_Y_DEFAULT;
-  }
+    }
 
-  // Deadzone player 2
-  if ((player2Y > PLAYER_Y_DEFAULT && player2Y < PLAYER_Y_DEFAULT + DEADZONE) ||
-  (player2Y < PLAYER_Y_DEFAULT && player2Y > PLAYER_Y_DEFAULT - DEADZONE)) {
+    // Deadzone player 2
+    if ((player2Y > PLAYER_Y_DEFAULT && player2Y < PLAYER_Y_DEFAULT + DEADZONE) ||
+    (player2Y < PLAYER_Y_DEFAULT && player2Y > PLAYER_Y_DEFAULT - DEADZONE)) {
     player2Y = PLAYER_Y_DEFAULT;
-  }
+    }
   */
 }
 
@@ -115,7 +118,7 @@ void updateBall()
   ballX += ballSpeedX;
   ballY += ballSpeedY;
 
-  // Aumentar puntuación y resetear la posicion de 
+  // Aumentar puntuación y resetear la posicion de
   // la bola en funcion de que jugador ha puntuado
   if (ballX > MAX_SCREEN_X)
   {
@@ -141,7 +144,7 @@ void updateBall()
     ballSpeedY *= -1;
 
   // Si hay colisión con el padel del jugador 1 o del 2
-  if (ballX == PLAYER1_X + PLAYER_WIDTH && ballY >= player1Y 
+  if (ballX == PLAYER1_X + PLAYER_WIDTH && ballY >= player1Y
       && ballY <= player1Y + PLAYER_HEIGHT)
   {
     // Si le da hado al paddle del jugador 1
@@ -151,7 +154,7 @@ void updateBall()
     ballSpeedX *= -1;
   }
   else if (ballX == PLAYER2_X && ballY >= player2Y
-            && ballY <= player2Y + PLAYER_HEIGHT)
+           && ballY <= player2Y + PLAYER_HEIGHT)
   {
     // Si le ha dado al paddle del jugador 2
     float paddleCenter = player2Y + (PLAYER_HEIGHT / 2);
@@ -193,7 +196,8 @@ void setup()
   Serial.begin(115200);
 
   pinMode(PIN_Y, INPUT);
-  pinMode(PIN_BUTT, INPUT);
+  pinMode(PIN_BUTT, INPUT_PULLUP);
+  pinMode(PIN_BUTT_DIGITAL, INPUT_PULLUP);
 
   // Configure timer 1
   // 10 ms; OC = 10; pre-escaler = 1:1024
@@ -293,55 +297,64 @@ void loop()
   // TABLA DE ESTADOS
   // 0 = Estamos en el menú
   // 1 = Estamos jugando
-  // 2 = Se acaba de hacer un punto
-
-  // Tecla recibida
-  uint8_t key;
 
   while (1)
   {
+
+    // FORZAMOS EL FLAG PLAYING PARA DEBUGGING
+    // state = PLAYING;
+
     // Cuando se verifica una interrupción del Timer
     if (timer_flag)
     {
       switch (state)
       {
-      case MENU:
-        // Cargar la pantalla de menú y comprobar que los dos jugadores pulsen el joystick
-        button1 = analogRead(PIN_BUTT);
-        if (button1 == 0 && button2 == 0){
-          state = PLAYING;
-          OCR1A = 300;
-          OCR4A = 25;
-        }
-        break;
-      case PLAYING:
-        // Aquí va el updateBall() y mirar si la algun jugador ha hecho punto
-        player1Y = analogRead(PIN_Y);
+        case MENU:
+          // Cargar la pantalla de menú y comprobar que los dos jugadores pulsen el joystick
+          //button1 = analogRead(PIN_BUTT);
+          button1 = digitalRead(PIN_BUTT_DIGITAL);
+          
+          //Serial.print("Valor deL BOTÓN: ");
+          //Serial.println(button1);
+          //if (button1 == 0)
+          //  Serial.println("\tBOTÓN 1 PULSADO HOSTIA");
+          if (button1 == 0 && button2 == 0) {
+          //  Serial.println("\tLOS DOS BOTONES HAN SIDO PULSADOS, ESPERANZA PUTA");
+            state = PLAYING;
+            //OCR1A = 300;
+            //OCR4A = 25;
+          }
+          break;
+        case PLAYING:
+          
+          // Aquí va el updateBall() y mirar si la algun jugador ha hecho punto
+          player1Y = analogRead(PIN_Y);
 
-        updatePlayers();
+          updatePlayers();
 
-        player1Y = map(player1Y, 0, 1023, 0, 740);
-        player2Y = map(player2Y, 0, 1023, 0, 740);
+          player1Y = map(player1Y, 0, 1023, 0, 740);
+          //player2Y = map(player2Y, 0, 1023, 0, 740);
 
-        updateBall();
+          updateBall();
 
-        Serial.print('<');
-        Serial.print(player1Y);
-        Serial.print(',');
-        Serial.print(player2Y);
-        Serial.print(',');
-        Serial.print(state);
-        Serial.print(',');
-        Serial.print(scoreP1);
-        Serial.print(',');
-        Serial.print(scoreP2);
-        Serial.print(',');
-        Serial.print(ballX);
-        Serial.print(',');
-        Serial.print(ballY);
-        Serial.println('>');
-        break;
-      default: break;
+          Serial.print('<');
+          Serial.print(player1Y);
+          Serial.print(',');
+          Serial.print(player2Y);
+          Serial.print(',');
+          Serial.print(state);
+          Serial.print(',');
+          Serial.print(scoreP1);
+          Serial.print(',');
+          Serial.print(scoreP2);
+          Serial.print(',');
+          Serial.print(ballX);
+          Serial.print(',');
+          Serial.print(ballY);
+          Serial.println('>');
+          break;
+
+        default: break;
       }
 
       timer_flag = false;

@@ -14,6 +14,7 @@
 
 #define PIN_Y A0    // Pin de input ANALógico
 #define PIN_BUTT A5  // Pin de input del botón
+#define PIN_BUTT_DIGITAL 2 // Pin de input del botón
 
 // Coordenadas del jugador (por defecto al centro de la ventana)
 uint16_t playerY = 405;  // Igual a posInicialY2 en el file Processing
@@ -41,12 +42,6 @@ char buff[30];
 
 volatile bool debounce = true;
 
-// Tarea periódica de actualización de juego y envío de datos
-ISR(TIMER1_COMPA_vect)
-{
-  //timer_flag = true;
-}
-
 /******************************************************************************/
 /** SETUP *********************************************************************/
 /******************************************************************************/
@@ -55,7 +50,8 @@ void setup()
 {
   Serial.begin(115200);
   pinMode(PIN_Y, INPUT);
-  pinMode(PIN_BUTT, INPUT);
+  pinMode(PIN_BUTT, INPUT_PULLUP);
+  pinMode(PIN_BUTT_DIGITAL, INPUT_PULLUP);
 
   /*
   // Configure timer 1 (timer de juego)
@@ -123,12 +119,18 @@ ISR(TIMER3_COMPA_vect)
   // DATOS A ENVIAR: Posición Y del ANALógico y estado del botón
 
   playerY = analogRead(PIN_Y);
-  uint8_t butt = analogRead(PIN_BUTT);
+  //uint8_t butt = analogRead(PIN_BUTT);
+  uint8_t butt = digitalRead(PIN_BUTT_DIGITAL);
+
+  playerY = map(playerY, 0, 1023, 0, 740);
   
   Serial.print("Valor de analogíco Y: ");
   Serial.println(playerY);
+  Serial.print("Valor deL BOTÓN: ");
+  Serial.println(butt);
+  
   if (butt == 0) {
-    Serial.println("BOTÓN PULSADO HOSTIA");
+    Serial.println("\tBOTÓN PULSADO HOSTIA");
   }
   //Serial.print("Valor del botón: ");
   //Serial.println(butt);
