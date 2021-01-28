@@ -37,21 +37,23 @@ class MyThread extends Thread {
         return;
       }
 
-      println("Estado playNow: " + playNow);
+      //println("Estado playNow: " + playNow);
 
       // if we have to play the sound, do it!
       while (playNow && !quit) {
         player.play();
+        
 
         while (player.position() < player.length() && !quit) {
-          println("Reproducidos " + player.position() + " de " + player.length());
+          if (player.position() % 100 == 0) {
+            println("Reproducidos " + player.position() + " de " + player.length());
+          }
         }
         
-        println("He salido del while");
+        //println("He salido del while");
 
         player.rewind();
 
-        //player.rewind();
       }
 
       // go back and wait again for 10 ms...
