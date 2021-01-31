@@ -108,7 +108,7 @@ void setup()
   s.bufferUntil('\n'); // Buffer hasta recibir un '\n' antes de llamar al serialEvent
 }
 
-// Dibuja la linea del medio del campo
+// Dibuja la linea en el medio del campo
 void dibujarLineaDivisoria()
 {
   noStroke();
@@ -130,6 +130,7 @@ void mostrarPuntuacion()
   text(scoreP2, 690, 50);
 }
 
+// Leemos los datos desde la placa 1
 void serialEvent(Serial s)
 { 
   // El try-catch evita de que se interrumpa la comunicación si el parsing
@@ -139,7 +140,7 @@ void serialEvent(Serial s)
     try {
       s.bufferUntil('\n');  // Almacena en el buffer hasta final de linea
       String input = s.readString();
-      //println("DEBUG Input: " + input.trim());
+
       // Elimina los marcadores de inicio/fin y el carácter de nueva línea al final
       input = input.replaceAll("<", "");
       input = input.replaceAll(">", "");
@@ -147,11 +148,6 @@ void serialEvent(Serial s)
 
       // Divide en tokens separados por la coma
       String[] tokens = splitTokens(input, ",");
-
-      // DEBUG - Impresión de los tokens por consola
-      // for (int i=0; i<tokens.length; i++) {
-      //  println("\tDEBUG Token " + i + ": " + tokens[i]);
-      // }
 
       // Actualiza las variables globales según los datos recibidos
       posY1 = Integer.parseInt(tokens[0]);
@@ -233,16 +229,19 @@ void draw()
   // Si estas jugando
   else if (state == PLAYING)
   {
+    // Quitamos el modo loop ya que se dibuja
+    // cada vez que recibe un mensaje por serial
+    noLoop();
+
+    // Reproducimos la música una vez
     if(once){
       sonar_menu.quit();
       sonar_play.playNow();
       once = false;
-    }
-    noLoop();
+    } 
 
-    // Pintar fondo
+    // Pintar fondo, linea divisoria y muestra la puntuación
     image(fondoJuego, 0, 0, screenSizeX, screenSizeY);
-
     dibujarLineaDivisoria();
     mostrarPuntuacion();
 
@@ -253,14 +252,12 @@ void draw()
     rect(posX2, posY2, inicialWidth, inicialHeight);
     ellipse(posBallX, posBallY, ballRadius, ballRadius);
 
-    //firstTime = false;
-    //}
-
     //Aplicamos el shader al fondo
     shader.set("iGlobalTime", millis() / 1000.0);
     filter(shader);
 
-    // Colocamos el frame de la TV encima del fondo
+    // Colocamos el frame de la TV encima del fondo 
+    // para evitar que se le aplique el shader
     image(frame, 0 - 100/2, 0 - 70/2 + 5, screenSizeX + 100, screenSizeY + 70);
   }
 }

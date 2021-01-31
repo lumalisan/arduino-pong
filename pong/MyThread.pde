@@ -1,3 +1,4 @@
+// Libreria para la música
 import ddf.minim.spi.*;
 import ddf.minim.signals.*;
 import ddf.minim.*;
@@ -5,6 +6,7 @@ import ddf.minim.analysis.*;
 import ddf.minim.ugens.*;
 import ddf.minim.effects.*;
 
+// Clase para implementar threads de música
 class MyThread extends Thread {
   Minim minim;
   AudioPlayer player;
@@ -18,10 +20,12 @@ class MyThread extends Thread {
     playNow = false;
   }
 
+  // Si queremos reproducir
   public void playNow() {
     playNow = true;
   }
 
+  // Si queremos parar la música
   public void quit() {
     quit = true;
     player.pause();
@@ -29,34 +33,28 @@ class MyThread extends Thread {
 
   void run() {
     while ( !quit ) {
-      // wait 10 ms, then check if need to play
+      // Esperamos 25ms para no sobrecargar la CPU
       try {
-        Thread.sleep( 25 );
+        Thread.sleep(25);
       } 
       catch ( InterruptedException e ) {
         return;
       }
 
-      //println("Estado playNow: " + playNow);
-
-      // if we have to play the sound, do it!
+      // Si playNow es TRUE, reproducimos
       while (playNow && !quit) {
         player.play();
-        
 
+        // Espera activa para reiniciar la canción cuando acaba
         while (player.position() < player.length() && !quit) {
           if (player.position() % 100 == 0) {
             println("Reproducidos " + player.position() + " de " + player.length());
           }
         }
-        
-        //println("He salido del while");
 
+        // Reiniciamos la canción
         player.rewind();
-
       }
-
-      // go back and wait again for 10 ms...
     }
   }
 }
