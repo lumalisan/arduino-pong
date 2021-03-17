@@ -1,4 +1,2 @@
-# arduino-pong
-
-CyberPONG 2077
-igualito que Cyberpunk pero con menos Kyanu Rivs y menos bugs ayy lmao
+# Clásico juego del Pong realizado en Arduino y Processing
+El juego se ejecuta principalmente en el Arduino y este se comunica mediante puerto serie hacia el PC, donde se ejecuta la interfaz gráfica hecha en Processing.
